@@ -10,10 +10,10 @@ class SlackListener < Redmine::Hook::Listener
 		return unless channel and url
 		return if issue.is_private?
 
-		msg = "[#{escape issue.project}] #{escape issue.author} created <#{object_url issue}|#{escape issue}>#{mentions issue.description}"
+		msg = "[#{escape issue.project}] #{escape issue.author} created <#{object_url issue}|#{escape issue}>#{sanitize issue.description}"
 
 		attachment = {}
-		attachment[:text] = escape issue.description if issue.description
+		attachment[:text] = sanitize issue.description if issue.description
 		attachment[:fields] = [{
 			:title => I18n.t("field_status"),
 			:value => escape(issue.status.to_s),
@@ -48,10 +48,10 @@ class SlackListener < Redmine::Hook::Listener
 		return if issue.is_private?
 		return if journal.private_notes?
 
-		msg = "[#{escape issue.project}] #{escape journal.user.to_s} updated <#{object_url issue}|#{escape issue}>#{mentions journal.notes}"
+		msg = "[#{escape issue.project}] #{escape journal.user.to_s} updated <#{object_url issue}|#{escape issue}>#{sanitize journal.notes}"
 
 		attachment = {}
-		attachment[:text] = escape journal.notes if journal.notes
+		attachment[:text] = sanitize journal.notes if journal.notes
 		attachment[:fields] = journal.details.map { |d| detail_to_field d }
 
 		speak msg, channel, attachment, url
@@ -98,7 +98,7 @@ class SlackListener < Redmine::Hook::Listener
 		end
 
 		attachment = {}
-		attachment[:text] = ll(Setting.default_language, :text_status_changed_by_changeset, "<#{revision_url}|#{escape changeset.comments}>")
+		attachment[:text] = ll(Setting.default_language, :text_status_changed_by_changeset, "<#{revision_url}|#{sanitize changeset.comments}>")
 		attachment[:fields] = journal.details.map { |d| detail_to_field d }
 
 		speak msg, channel, attachment, url
@@ -121,7 +121,7 @@ class SlackListener < Redmine::Hook::Listener
 		attachment = nil
 		if not page.content.comments.empty?
 			attachment = {}
-			attachment[:text] = "#{escape page.content.comments}"
+			attachment[:text] = "#{sanitize page.content.comments}"
 		end
 
 		speak comment, channel, attachment, url
@@ -164,6 +164,10 @@ class SlackListener < Redmine::Hook::Listener
 private
 	def escape(msg)
 		msg.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+	end
+
+	def sanitize(msg)
+		Redmine::WikiFormatting.html_parser.to_text(msg)
 	end
 
 	def object_url(obj)
@@ -233,6 +237,7 @@ private
 		case key
 		when "title", "subject", "description"
 			short = false
+			value = sanitize detail.value.to_s
 		when "tracker"
 			tracker = Tracker.find(detail.value) rescue nil
 			value = escape tracker.to_s
